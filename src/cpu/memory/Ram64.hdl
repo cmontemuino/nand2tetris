@@ -1,0 +1,61 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/3/a/RAM64.hdl
+/**
+ * Memory of sixty four 16-bit registers.
+ * If load is asserted, the value of the register selected by
+ * address is set to in; Otherwise, the value does not change.
+ * The value of the selected register is emitted by out.
+ */
+CHIP RAM64 {
+    IN in[16], load, address[6];
+    OUT out[16];
+
+    PARTS:
+        /**
+         * General idea:
+         *   Use 8 RAM8 chips as we used 8 Registers chip with RAM8.
+         * Challenge:
+         *  To select the proper RAM8 chip.
+         * Reflection:
+         *   In the RAM8 chip design, it was trivial because `k=3` translates into 8 addresess,
+         *   which equals the number of Register chips. Now `k=6`, which translates into 64
+         *   addresses, but we have 8 RAM8 chips. What happens is that we are encapsulating 8
+         *   addresses in each one of these RAM8 chips.
+         * Approach:
+         *   Considering the 64 required Register chips, `address[0..2]` alone points to the
+         *   the first 8 Register chips.
+         *   When `address[3]=1`, then we are pointing to the second batch of 8 Register chips.
+         *   When `address[4]=1`, we point to two extra batch of 8 Register chips, depending on the
+         *   value of `address[3]`. When the former is `0`, this is the third batch. When it is `1`,
+         *   it is the fourth batch.
+         *   Following the same rationale, `address[5]` will point to the remaining four batches of
+         *   Register chips.
+         *   Given the previous rationale, we can use `address[3..5]` to address 8 RAM8 chips:
+         *     `000 -> chip 1, 001 --> chip 2, ..., 111 --> chip 8`
+         *   Using a DMux8Way chip in combination with a Mux8Way16 chip we can select one of the eigth
+         *   RAM8 chip, the same way we did it with the eight Register chips when implemented RAM8 itself.
+         *   The remaining problem now is to address an individual Register chip inside RAM8. That we
+         *   do with `address[0..2]` (which gives as a number between 0 and 7).
+         * Example:
+         *   in=1; address=[1,0,0,1,0,1] ---> the 37th Register (0-based indexing)
+         *   With address[3..5] we have [1,0,0]. Thus, DMux8Way will have `e=in` and remaining wires
+         *   will be set to `0`. From that chip we have `e=l4`, which translates into the RAM8 chip
+         *   with `out=r4`.
+         *   With address[0..2] we have [1,0,1]. Thus, RAM8 gives the register with index=5.
+         *   The Mux8Way16 is taking RAM8 chip with `out=r4` too.
+         *   If we count from 0 to 63, then it is confirmed the final output is pointing to
+         *   Register number 37, as initially expected.
+         */
+        DMux8Way(in=load , sel=address[3..5] , a=l0, b=l1, c=l2, d=l3, e=l4, f=l5, g=l6, h=l7);
+        RAM8(in=in, load=l0, address=address[0..2], out=r0);
+        RAM8(in=in, load=l1, address=address[0..2], out=r1);
+        RAM8(in=in, load=l2, address=address[0..2], out=r2);
+        RAM8(in=in, load=l3, address=address[0..2], out=r3);
+        RAM8(in=in, load=l4, address=address[0..2], out=r4);
+        RAM8(in=in, load=l5, address=address[0..2], out=r5);
+        RAM8(in=in, load=l6, address=address[0..2], out=r6);
+        RAM8(in=in, load=l7, address=address[0..2], out=r7);
+        Mux8Way16(a=r0, b=r1, c=r2, d=r3, e=r4, f=r5, g=r6, h=r7, sel=address[3..5], out=out);
+}
