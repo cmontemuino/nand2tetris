@@ -1,0 +1,56 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/5/Memory.hdl
+/**
+ * The complete address space of the Hack computer's memory,
+ * including RAM and memory-mapped I/O. 
+ * The chip facilitates read and write operations, as follows:
+ *     Read:  out(t) = Memory[address(t)](t)
+ *     Write: if load(t-1) then Memory[address(t-1)](t) = in(t-1)
+ * In words: the chip always outputs the value stored at the memory 
+ * location specified by address. If load=1, the in value is loaded 
+ * into the memory location specified by address. This value becomes 
+ * available through the out output from the next time step onward.
+ * Address space rules:
+ * Only the upper 16K+8K+1 words of the Memory chip are used. 
+ * Access to address>0x6000 is invalid. Access to any address in 
+ * the range 0x4000-0x5FFF results in accessing the screen memory 
+ * map. Access to address 0x6000 results in accessing the keyboard 
+ * memory map. The behavior in these addresses is described in the Screen
+ * and Keyboard chip specifications given in the lectures and the book.
+ */
+CHIP Memory {
+    IN in[16], load, address[15];
+    OUT out[16];
+
+    PARTS:
+      // Keyboard output is very simple: use the provided Keyboard chip and declare
+      // variable `keyboardOut`. That variable will hold the output of the keyboard.
+      // It's address is 0x6000: 0110 0000 0000 0000
+      Keyboard(out=keyboardOut);
+
+      // Inspect the ranges for RAM and SCREEN:
+      // * addressRam:      0x0-0x3FFF:    000 0000 0000 0000 - 011 1111 1111 1111
+      // * addressScreen:   0x4000-0x5FFF: 100 0000 0000 0000 - 101 1111 1111 1111 
+      // Observations from above:
+      // * RAM addressing translates into address[14]=0
+      // * SCREEN addressing translates into address[14]=1 and address[13]=0
+      // Thus, `if (address[14] and (not address[13]) then out=ramOut`
+      // This information is determinant to identify RAM and SCREEN addressing, and
+      // whehther the `load` applies to RAM or SCREEN.
+      And(a=address[14], b=address[13], out=keyboardIn);
+      Not(in=address[13], out=notAddress13);
+      And(a=address[14], b=notAddress13, out=ramOrScreenIn);
+      DMux(in=load, sel=ramOrScreenIn, a=ramLoad, b=screenLoad);
+
+      RAM16K(in=in, load=ramLoad, address=address[0..13], out=ramOut);
+      // Screen's address gets determined by 10x xxxx xxxx xxxx
+      // That is, it takes the last 13 bits of the address.
+      Screen(in=in, load=screenLoad, address=address[0..12], out=screenOut);
+
+      // With both `ramOut` and `screenOut`, now it is possible to determine what to put in
+      // in the final output.
+      Mux16(a=ramOut, b=screenOut, sel=ramOrScreenIn, out=ramOrScreenOut);
+      Mux16(a=ramOrScreenOut, b=keyboardOut, sel=keyboardIn, out=out);
+}
